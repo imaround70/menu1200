@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1200 Calorie Meal Planner</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* Custom scrollbar styles */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Modal overlay */
+        .modal-overlay {
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Lucide Icons as React components
+        const Clock = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+        );
+
+        const Download = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4m4-5l5 5 5-5m-5 5V3" />
+            </svg>
+        );
+
+        const ShoppingCart = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+        );
+
+        const RefreshCw = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+        );
+
+        const X = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        );
+
+        const Home = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        );
+
+        const List = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+        );
+
+        const MealPlanner = () => {
+            const [currentTheme, setCurrentTheme] = useState(0);
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [currentDay, setCurrentDay] = useState(1); // 1-7 for Monday-Sunday
+            const [weekMeals, setWeekMeals] = useState({}); // Store meals for each day
+            const [progress, setProgress] = useState({});
+            const [activeTimers, setActiveTimers] = useState({});
+            const [showRecipe, setShowRecipe] = useState(null);
+            const [overeatingModal, setOvereatingModal] = useState(null);
+            const [extraCalories, setExtraCalories] = useState('');
+            const [shoppingList, setShoppingList] = useState([]);
+            const [showShoppingList, setShowShoppingList] = useState(false);
+            const [currentPage, setCurrentPage] = useState('meals');
+
+            const themes = [
+                { name: 'Lavender Dream', bg: 'from-purple-50 to-pink-50', card: 'bg-white/80', accent: 'bg-purple-400', accentHover: 'hover:bg-purple-500', text: 'text-purple-900', border: 'border-purple-300' },
+                { name: 'Mint Breeze', bg: 'from-green-50 to-blue-50', card: 'bg-white/80', accent: 'bg-green-400', accentHover: 'hover:bg-green-500', text: 'text-green-900', border: 'border-green-300' },
+                { name: 'Peach Sunset', bg: 'from-orange-50 to-yellow-50', card: 'bg-white/80', accent: 'bg-orange-400', accentHover: 'hover:bg-orange-500', text: 'text-orange-900', border: 'border-orange-300' }
+            ];
+
+            const daysOfWeek = [
+                { name: 'Monday', color: 'bg-purple-100 hover:bg-purple-200 border-purple-300', activeColor: 'bg-purple-300 border-purple-500' },
+                { name: 'Tuesday', color: 'bg-blue-100 hover:bg-blue-200 border-blue-300', activeColor: 'bg-blue-300 border-blue-500' },
+                { name: 'Wednesday', color: 'bg-green-100 hover:bg-green-200 border-green-300', activeColor: 'bg-green-300 border-green-500' },
+                { name: 'Thursday', color: 'bg-yellow-100 hover:bg-yellow-200 border-yellow-300', activeColor: 'bg-yellow-300 border-yellow-500' },
+                { name: 'Friday', color: 'bg-orange-100 hover:bg-orange-200 border-orange-300', activeColor: 'bg-orange-300 border-orange-500' },
+                { name: 'Saturday', color: 'bg-pink-100 hover:bg-pink-200 border-pink-300', activeColor: 'bg-pink-300 border-pink-500' },
+                { name: 'Sunday', color: 'bg-red-100 hover:bg-red-200 border-red-300', activeColor: 'bg-red-300 border-red-500' }
+            ];
+
+            // Expanded meal database with more variety for 7 days
+            const mealDatabase = {
+                breakfast: [
+                    { name: '🥣 Oatmeal with Berries', calories: 280, protein: 8, carbs: 52, fat: 5, time: 10, ingredients: ['1/2 cup oats', '1 cup almond milk', '1/2 cup mixed berries', '1 tsp honey', '1 tbsp chia seeds'], steps: ['Heat almond milk in a pot', 'Add oats and cook for 5 minutes', 'Top with berries, honey, and chia seeds'], substitutes: ['Use regular milk instead of almond', 'Replace berries with banana'] },
+                    { name: '🍳 Veggie Scramble', calories: 275, protein: 18, carbs: 15, fat: 16, time: 15, ingredients: ['2 eggs', '1/2 cup spinach', '1/4 cup mushrooms', '1/4 cup bell peppers', '1 slice whole wheat toast'], steps: ['Sauté vegetables in non-stick pan', 'Add beaten eggs', 'Scramble until cooked', 'Serve with toast'], substitutes: ['Use egg whites only', 'Add different vegetables'] },
+                    { name: '🥑 Avocado Toast', calories: 285, protein: 12, carbs: 28, fat: 14, time: 5, ingredients: ['2 slices whole grain bread', '1/2 avocado', '1 poached egg', 'Cherry tomatoes', 'Salt & pepper'], steps: ['Toast bread', 'Mash avocado and spread on toast', 'Top with poached egg and tomatoes'], substitutes: ['Use scrambled egg', 'Add feta cheese'] },
+                    { name: '🥞 Protein Pancakes', calories: 290, protein: 20, carbs: 35, fat: 7, time: 20, ingredients: ['1 scoop protein powder', '1 banana', '2 eggs', '1/4 cup oats', 'Berries for topping'], steps: ['Blend all ingredients except berries', 'Cook small pancakes on griddle', 'Top with fresh berries'], substitutes: ['Use regular flour', 'Add maple syrup'] },
+                    { name: '🍓 Greek Yogurt Bowl', calories: 270, protein: 15, carbs: 40, fat: 6, time: 5, ingredients: ['1 cup Greek yogurt', '1/2 cup granola', '1/2 cup strawberries', '1 tbsp honey', 'Almonds'], steps: ['Layer yogurt in bowl', 'Top with granola and berries', 'Drizzle with honey', 'Sprinkle almonds'], substitutes: ['Use regular yogurt', 'Try different fruits'] },
+                    { name: '🥐 Breakfast Wrap', calories: 280, protein: 16, carbs: 30, fat: 10, time: 10, ingredients: ['1 whole wheat tortilla', '2 egg whites', '2 tbsp salsa', '1/4 avocado', 'Spinach'], steps: ['Scramble egg whites', 'Warm tortilla', 'Fill with eggs, salsa, avocado, spinach', 'Roll and serve'], substitutes: ['Add cheese', 'Use whole eggs'] },
+                    { name: '🍌 Banana Smoothie Bowl', calories: 285, protein: 12, carbs: 48, fat: 6, time: 5, ingredients: ['1 frozen banana', '1/2 cup Greek yogurt', '1/4 cup almond milk', 'Granola', 'Coconut flakes'], steps: ['Blend banana, yogurt, milk until smooth', 'Pour into bowl', 'Top with granola and coconut'], substitutes: ['Add protein powder', 'Use different toppings'] },
+                    { name: '🧇 Whole Grain Waffles', calories: 275, protein: 10, carbs: 42, fat: 8, time: 15, ingredients: ['2 whole grain waffles', '1 tbsp almond butter', '1/2 cup berries', '1 tsp maple syrup'], steps: ['Toast waffles', 'Spread almond butter', 'Top with berries and syrup'], substitutes: ['Use peanut butter', 'Add banana slices'] },
+                    { name: '🥗 Breakfast Salad', calories: 280, protein: 14, carbs: 25, fat: 14, time: 10, ingredients: ['2 cups mixed greens', '1 poached egg', '1/4 avocado', 'Cherry tomatoes', 'Balsamic dressing'], steps: ['Arrange greens on plate', 'Top with poached egg and avocado', 'Add tomatoes', 'Drizzle with dressing'], substitutes: ['Add bacon bits', 'Use different dressing'] },
+                    { name: '🍞 Cottage Cheese Toast', calories: 275, protein: 18, carbs: 32, fat: 8, time: 5, ingredients: ['2 slices whole grain bread', '1/2 cup cottage cheese', 'Sliced cucumber', 'Cherry tomatoes', 'Everything bagel seasoning'], steps: ['Toast bread', 'Spread cottage cheese', 'Top with vegetables and seasoning'], substitutes: ['Add smoked salmon', 'Use ricotta cheese'] },
+                    { name: '🥄 Chia Pudding', calories: 285, protein: 10, carbs: 35, fat: 12, time: 5, ingredients: ['3 tbsp chia seeds', '1 cup almond milk', '1 tbsp maple syrup', '1/2 cup mango', 'Coconut flakes'], steps: ['Mix chia seeds with milk and syrup', 'Refrigerate overnight', 'Top with mango and coconut'], substitutes: ['Use different fruit', 'Add nuts'] },
+                    { name: '🍳 English Muffin Sandwich', calories: 280, protein: 16, carbs: 30, fat: 10, time: 10, ingredients: ['1 whole wheat English muffin', '1 egg', '1 slice turkey', 'Tomato slice', 'Spinach'], steps: ['Toast English muffin', 'Cook egg', 'Layer turkey, egg, tomato, spinach', 'Assemble sandwich'], substitutes: ['Add cheese', 'Use ham instead'] },
+                    { name: '🥚 Veggie Omelet', calories: 270, protein: 19, carbs: 18, fat: 14, time: 12, ingredients: ['3 eggs', 'Onions', 'Tomatoes', 'Spinach', 'Feta cheese'], steps: ['Beat eggs', 'Sauté vegetables', 'Pour eggs over veggies', 'Add feta and fold'], substitutes: ['Use different cheese', 'Add mushrooms'] },
+                    { name: '🍎 Apple Cinnamon Oats', calories: 280, protein: 9, carbs: 50, fat: 6, time: 8, ingredients: ['1/2 cup oats', '1 cup milk', '1 apple diced', 'Cinnamon', 'Walnuts'], steps: ['Cook oats with milk', 'Add diced apple and cinnamon', 'Top with walnuts'], substitutes: ['Use pear instead', 'Add raisins'] }
+                ],
+                lunch: [
+                    { name: '🥗 Chicken Caesar Salad', calories: 380, protein: 35, carbs: 25, fat: 16, time: 15, ingredients: ['4 oz grilled chicken', '2 cups romaine', '2 tbsp Caesar dressing', 'Parmesan', '1/2 cup croutons'], steps: ['Grill and slice chicken', 'Toss romaine with dressing', 'Top with chicken, parmesan, croutons'], substitutes: ['Use shrimp instead', 'Add boiled egg'] },
+                    { name: '🌯 Turkey Wrap', calories: 370, protein: 28, carbs: 35, fat: 12, time: 10, ingredients: ['1 whole wheat tortilla', '4 oz turkey breast', 'Lettuce', 'Tomato', '2 tbsp hummus', 'Cucumber'], steps: ['Spread hummus on tortilla', 'Layer turkey and vegetables', 'Roll tightly', 'Cut in half'], substitutes: ['Use chicken', 'Add avocado'] },
+                    { name: '🍜 Vegetable Soup', calories: 365, protein: 18, carbs: 48, fat: 10, time: 30, ingredients: ['Mixed vegetables', 'White beans', 'Vegetable broth', 'Whole grain roll', 'Italian herbs'], steps: ['Sauté vegetables', 'Add broth and beans', 'Simmer 20 minutes', 'Serve with roll'], substitutes: ['Add chicken', 'Use different beans'] },
+                    { name: '🥙 Falafel Pita', calories: 375, protein: 15, carbs: 52, fat: 12, time: 15, ingredients: ['1 whole wheat pita', '4 falafels', 'Tzatziki sauce', 'Cucumber', 'Tomatoes', 'Lettuce'], steps: ['Warm pita and falafels', 'Fill pita with falafels', 'Add vegetables and tzatziki'], substitutes: ['Use tahini instead', 'Add pickles'] },
+                    { name: '🍝 Pasta Primavera', calories: 380, protein: 14, carbs: 58, fat: 10, time: 20, ingredients: ['1 cup whole wheat pasta', 'Mixed vegetables', 'Cherry tomatoes', '1 tbsp olive oil', 'Parmesan', 'Garlic'], steps: ['Cook pasta al dente', 'Sauté vegetables with garlic', 'Toss with pasta and oil', 'Top with parmesan'], substitutes: ['Add chicken', 'Use pesto'] },
+                    { name: '🥪 Tuna Sandwich', calories: 370, protein: 30, carbs: 40, fat: 8, time: 10, ingredients: ['2 slices whole grain bread', '1 can tuna in water', '1 tbsp light mayo', 'Lettuce', 'Tomato', 'Cucumber'], steps: ['Mix tuna with mayo', 'Toast bread if desired', 'Layer tuna and vegetables', 'Assemble sandwich'], substitutes: ['Add avocado', 'Use Greek yogurt instead of mayo'] },
+                    { name: '🍲 Lentil Bowl', calories: 375, protein: 20, carbs: 55, fat: 8, time: 25, ingredients: ['1 cup cooked lentils', '1/2 cup quinoa', 'Roasted vegetables', 'Tahini dressing', 'Lemon'], steps: ['Cook lentils and quinoa', 'Roast vegetables', 'Combine in bowl', 'Drizzle with tahini'], substitutes: ['Add feta cheese', 'Use different vegetables'] },
+                    { name: '🥗 Asian Chicken Salad', calories: 380, protein: 32, carbs: 28, fat: 14, time: 15, ingredients: ['4 oz grilled chicken', 'Mixed greens', 'Mandarin oranges', 'Almonds', 'Sesame ginger dressing', 'Wonton strips'], steps: ['Grill and slice chicken', 'Toss greens with dressing', 'Top with chicken, oranges, almonds, wontons'], substitutes: ['Use tofu', 'Add edamame'] },
+                    { name: '🌮 Fish Tacos', calories: 370, protein: 28, carbs: 38, fat: 12, time: 20, ingredients: ['4 oz white fish', '2 corn tortillas', 'Cabbage slaw', 'Avocado', 'Lime', 'Cilantro'], steps: ['Season and grill fish', 'Warm tortillas', 'Fill with fish and slaw', 'Top with avocado and cilantro'], substitutes: ['Use shrimp', 'Add salsa'] },
+                    { name: '🥘 Chicken Stir-Fry', calories: 375, protein: 30, carbs: 42, fat: 10, time: 20, ingredients: ['4 oz chicken breast', 'Mixed stir-fry vegetables', '1/2 cup brown rice', 'Soy sauce', 'Ginger', 'Garlic'], steps: ['Cook rice', 'Stir-fry chicken with garlic and ginger', 'Add vegetables', 'Season with soy sauce', 'Serve over rice'], substitutes: ['Use beef', 'Try different vegetables'] },
+                    { name: '🍕 Flatbread Pizza', calories: 380, protein: 18, carbs: 45, fat: 14, time: 15, ingredients: ['1 whole wheat flatbread', '1/4 cup marinara', 'Mozzarella', 'Vegetables', 'Basil'], steps: ['Spread marinara on flatbread', 'Add cheese and vegetables', 'Bake at 400°F for 10 minutes', 'Top with fresh basil'], substitutes: ['Add chicken', 'Use different toppings'] },
+                    { name: '🥗 Cobb Salad', calories: 375, protein: 32, carbs: 20, fat: 18, time: 15, ingredients: ['Mixed greens', '3 oz chicken', '1 boiled egg', 'Cherry tomatoes', 'Avocado', 'Blue cheese dressing'], steps: ['Arrange greens on plate', 'Top with chicken, egg, tomatoes', 'Add avocado', 'Drizzle with dressing'], substitutes: ['Add bacon', 'Use ranch dressing'] },
+                    { name: '🍛 Chicken Curry Bowl', calories: 370, protein: 28, carbs: 45, fat: 10, time: 25, ingredients: ['4 oz chicken', 'Curry sauce', '1/2 cup rice', 'Peas', 'Carrots'], steps: ['Cook rice', 'Simmer chicken in curry sauce', 'Add vegetables', 'Serve over rice'], substitutes: ['Use tofu', 'Add potatoes'] },
+                    { name: '🥙 Greek Wrap', calories: 375, protein: 24, carbs: 42, fat: 12, time: 10, ingredients: ['Whole wheat wrap', 'Grilled chicken', 'Feta cheese', 'Olives', 'Cucumber', 'Tzatziki'], steps: ['Grill chicken', 'Spread tzatziki on wrap', 'Add chicken and toppings', 'Roll up'], substitutes: ['Use lamb', 'Add lettuce'] }
+                ],
+                snack: [
+                    { name: '🍎 Apple with Almond Butter', calories: 180, protein: 4, carbs: 25, fat: 8, time: 2, ingredients: ['1 medium apple', '1 tbsp almond butter'], steps: ['Slice apple', 'Serve with almond butter for dipping'], substitutes: ['Use peanut butter', 'Try banana instead'] },
+                    { name: '🥕 Veggies with Hummus', calories: 170, protein: 6, carbs: 22, fat: 7, time: 5, ingredients: ['Carrot sticks', 'Cucumber', 'Bell peppers', '1/4 cup hummus'], steps: ['Cut vegetables into sticks', 'Serve with hummus'], substitutes: ['Use ranch dip', 'Try guacamole'] },
+                    { name: '🧀 Cheese & Crackers', calories: 175, protein: 8, carbs: 18, fat: 8, time: 2, ingredients: ['6 whole grain crackers', '1 oz cheddar cheese', 'Grapes'], steps: ['Slice cheese', 'Arrange with crackers and grapes'], substitutes: ['Use different cheese', 'Add nuts'] },
+                    { name: '🥤 Protein Smoothie', calories: 180, protein: 15, carbs: 25, fat: 3, time: 5, ingredients: ['1 scoop protein powder', '1 cup almond milk', '1/2 banana', 'Handful spinach', 'Ice'], steps: ['Blend all ingredients until smooth'], substitutes: ['Use regular milk', 'Add berries'] },
+                    { name: '🍫 Energy Balls', calories: 175, protein: 5, carbs: 24, fat: 7, time: 2, ingredients: ['Oats', 'Dates', 'Almond butter', 'Dark chocolate chips', 'Chia seeds'], steps: ['Pre-made energy balls', 'Eat 2-3 balls'], substitutes: ['Use coconut', 'Add protein powder'] },
+                    { name: '🥜 Trail Mix', calories: 180, protein: 6, carbs: 20, fat: 9, time: 2, ingredients: ['Almonds', 'Walnuts', 'Dried cranberries', 'Dark chocolate chips', 'Pumpkin seeds'], steps: ['Mix ingredients', 'Portion 1/4 cup'], substitutes: ['Use different nuts', 'Add coconut flakes'] },
+                    { name: '🍌 Banana Nice Cream', calories: 170, protein: 4, carbs: 35, fat: 2, time: 5, ingredients: ['1 frozen banana', '1 tbsp cocoa powder', '1 tbsp almond milk'], steps: ['Blend frozen banana until creamy', 'Add cocoa and milk', 'Blend until smooth'], substitutes: ['Add peanut butter', 'Use vanilla extract'] },
+                    { name: '🥚 Hard-Boiled Eggs', calories: 175, protein: 12, carbs: 10, fat: 10, time: 2, ingredients: ['2 hard-boiled eggs', '1/2 cup cherry tomatoes', 'Salt & pepper'], steps: ['Peel eggs', 'Season with salt and pepper', 'Serve with tomatoes'], substitutes: ['Make deviled eggs', 'Add avocado'] },
+                    { name: '🍿 Popcorn', calories: 170, protein: 4, carbs: 30, fat: 4, time: 5, ingredients: ['3 cups air-popped popcorn', '1 tsp olive oil', 'Nutritional yeast', 'Sea salt'], steps: ['Pop popcorn', 'Drizzle with oil', 'Sprinkle with yeast and salt'], substitutes: ['Use butter', 'Add parmesan'] },
+                    { name: '🍓 Berries with Cream', calories: 175, protein: 3, carbs: 28, fat: 6, time: 2, ingredients: ['1 cup mixed berries', '2 tbsp whipped cream', 'Mint leaves'], steps: ['Wash berries', 'Top with whipped cream', 'Garnish with mint'], substitutes: ['Use yogurt', 'Add honey'] },
+                    { name: '🥒 Cucumber Rolls', calories: 170, protein: 8, carbs: 18, fat: 7, time: 10, ingredients: ['1 cucumber', '2 oz cream cheese', 'Smoked salmon', 'Dill'], steps: ['Slice cucumber lengthwise', 'Spread cream cheese', 'Add salmon', 'Roll and secure'], substitutes: ['Use turkey', 'Add avocado'] },
+                    { name: '🍊 Citrus Salad', calories: 180, protein: 3, carbs: 38, fat: 2, time: 5, ingredients: ['1 orange', '1/2 grapefruit', 'Mint leaves', '1 tsp honey', 'Pistachios'], steps: ['Segment citrus fruits', 'Arrange on plate', 'Drizzle with honey', 'Top with mint and pistachios'], substitutes: ['Add berries', 'Use almonds'] },
+                    { name: '🥜 Peanut Butter Celery', calories: 175, protein: 7, carbs: 15, fat: 10, time: 3, ingredients: ['3 celery sticks', '2 tbsp peanut butter', 'Raisins'], steps: ['Fill celery with peanut butter', 'Top with raisins'], substitutes: ['Use almond butter', 'Add chocolate chips'] },
+                    { name: '🍪 Protein Bar', calories: 180, protein: 10, carbs: 22, fat: 7, time: 1, ingredients: ['1 protein bar'], steps: ['Unwrap and enjoy'], substitutes: ['Make homemade bars', 'Use granola bar'] }
+                ],
+                dinner: [
+                    { name: '🍗 Grilled Chicken Breast', calories: 370, protein: 42, carbs: 25, fat: 10, time: 25, ingredients: ['6 oz chicken breast', '1 cup roasted vegetables', '1/2 cup quinoa', 'Lemon', 'Herbs'], steps: ['Season and grill chicken', 'Cook quinoa', 'Roast vegetables', 'Serve together with lemon'], substitutes: ['Use fish', 'Try sweet potato instead'] },
+                    { name: '🐟 Baked Salmon', calories: 380, protein: 35, carbs: 28, fat: 14, time: 20, ingredients: ['5 oz salmon fillet', 'Asparagus', '1/2 cup brown rice', 'Lemon', 'Dill', 'Garlic'], steps: ['Season salmon with dill and garlic', 'Bake at 400°F for 15 minutes', 'Steam asparagus', 'Serve with rice'], substitutes: ['Use trout', 'Try green beans'] },
+                    { name: '🍝 Spaghetti Bolognese', calories: 375, protein: 25, carbs: 48, fat: 9, time: 30, ingredients: ['1 cup whole wheat spaghetti', '4 oz lean ground beef', 'Marinara sauce', 'Garlic', 'Onion', 'Parmesan'], steps: ['Cook pasta', 'Brown beef with garlic and onion', 'Add marinara and simmer', 'Toss with pasta', 'Top with parmesan'], substitutes: ['Use turkey', 'Add vegetables'] },
+                    { name: '🥙 Chicken Gyro Bowl', calories: 370, protein: 32, carbs: 40, fat: 10, time: 20, ingredients: ['5 oz chicken breast', '1/2 cup couscous', 'Cucumber', 'Tomatoes', 'Tzatziki', 'Olives'], steps: ['Season and grill chicken', 'Cook couscous', 'Chop vegetables', 'Assemble bowl with tzatziki'], substitutes: ['Use lamb', 'Try quinoa'] },
+                    { name: '🌮 Turkey Chili', calories: 365, protein: 30, carbs: 45, fat: 8, time: 35, ingredients: ['5 oz ground turkey', 'Kidney beans', 'Tomatoes', 'Peppers', 'Onion', 'Chili spices', 'Cornbread'], steps: ['Brown turkey', 'Add vegetables and beans', 'Season and simmer 25 minutes', 'Serve with small cornbread'], substitutes: ['Use beef', 'Add more beans'] },
+                    { name: '🍤 Shrimp Stir-Fry', calories: 370, protein: 28, carbs: 45, fat: 9, time: 20, ingredients: ['6 oz shrimp', 'Mixed vegetables', '3/4 cup brown rice', 'Ginger', 'Garlic', 'Soy sauce'], steps: ['Cook rice', 'Stir-fry shrimp with ginger and garlic', 'Add vegetables', 'Season and serve over rice'], substitutes: ['Use chicken', 'Try noodles'] },
+                    { name: '🥩 Lean Beef Stir-Fry', calories: 375, protein: 32, carbs: 38, fat: 11, time: 25, ingredients: ['5 oz lean beef', 'Broccoli', 'Bell peppers', '1/2 cup rice noodles', 'Teriyaki sauce'], steps: ['Slice beef thinly', 'Stir-fry with vegetables', 'Cook noodles', 'Combine with sauce'], substitutes: ['Use tofu', 'Add mushrooms'] },
+                    { name: '🍕 Margherita Pizza', calories: 380, protein: 18, carbs: 52, fat: 12, time: 20, ingredients: ['Whole wheat pizza dough', 'Tomato sauce', 'Fresh mozzarella', 'Basil', 'Side salad'], steps: ['Roll out dough', 'Add sauce and cheese', 'Bake at 450°F for 12 minutes', 'Top with basil', 'Serve with salad'], substitutes: ['Add vegetables', 'Use different cheese'] },
+                    { name: '🍲 Vegetarian Curry', calories: 370, protein: 14, carbs: 58, fat: 10, time: 30, ingredients: ['Chickpeas', 'Cauliflower', 'Spinach', 'Curry spices', '3/4 cup basmati rice', 'Coconut milk'], steps: ['Cook rice', 'Sauté vegetables with spices', 'Add chickpeas and coconut milk', 'Simmer 15 minutes', 'Serve over rice'], substitutes: ['Add chicken', 'Use lentils'] },
+                    { name: '🐔 Chicken Fajitas', calories: 375, protein: 32, carbs: 42, fat: 10, time: 20, ingredients: ['5 oz chicken breast', 'Bell peppers', 'Onions', '2 small tortillas', 'Salsa', 'Lime'], steps: ['Slice chicken and vegetables', 'Stir-fry with fajita seasoning', 'Warm tortillas', 'Serve with salsa and lime'], substitutes: ['Use beef', 'Add guacamole'] },
+                    { name: '🍜 Pho Bowl', calories: 370, protein: 28, carbs: 48, fat: 7, time: 25, ingredients: ['Rice noodles', '4 oz beef or chicken', 'Bean sprouts', 'Herbs', 'Broth', 'Lime', 'Chili'], steps: ['Prepare broth', 'Cook noodles', 'Slice meat thinly', 'Assemble bowl with herbs and lime'], substitutes: ['Use tofu', 'Add vegetables'] },
+                    { name: '🥘 Stuffed Bell Peppers', calories: 375, protein: 26, carbs: 45, fat: 10, time: 40, ingredients: ['2 bell peppers', '4 oz ground turkey', '1/2 cup rice', 'Tomato sauce', 'Cheese', 'Onion'], steps: ['Cut peppers in half', 'Mix turkey, rice, sauce', 'Fill peppers', 'Bake at 375°F for 30 minutes', 'Top with cheese'], substitutes: ['Use beef', 'Add beans'] },
+                    { name: '🍗 BBQ Chicken', calories: 370, protein: 35, carbs: 32, fat: 11, time: 30, ingredients: ['5 oz chicken breast', 'BBQ sauce', 'Sweet potato', 'Green beans'], steps: ['Brush chicken with BBQ sauce', 'Grill or bake', 'Roast sweet potato', 'Steam green beans'], substitutes: ['Use pork', 'Try regular potato'] },
+                    { name: '🐟 Teriyaki Salmon', calories: 375, protein: 34, carbs: 35, fat: 12, time: 22, ingredients: ['5 oz salmon', 'Teriyaki sauce', 'Brown rice', 'Broccoli'], steps: ['Marinate salmon in teriyaki', 'Bake for 15 minutes', 'Cook rice', 'Steam broccoli'], substitutes: ['Use chicken', 'Try bok choy'] }
+                ]
+            };
+
+            // Generate unique meal plan for a specific day
+            const generateDayMeals = (dayNumber) => {
+                const usedMeals = new Set();
+                
+                // Get random meal that hasn't been used
+                const getUniqueMeal = (category) => {
+                    const meals = mealDatabase[category];
+                    let attempts = 0;
+                    let meal;
+                    
+                    do {
+                        meal = meals[Math.floor(Math.random() * meals.length)];
+                        attempts++;
+                    } while (usedMeals.has(meal.name) && attempts < 50);
+                    
+                    usedMeals.add(meal.name);
+                    return meal;
+                };
+
+                return [
+                    { ...getUniqueMeal('breakfast'), type: 'breakfast', eaten: false },
+                    { ...getUniqueMeal('lunch'), type: 'lunch', eaten: false },
+                    { ...getUniqueMeal('snack'), type: 'snack', eaten: false },
+                    { ...getUniqueMeal('dinner'), type: 'dinner', eaten: false }
+                ];
+            };
+
+            // Initialize meals for all days
+            useEffect(() => {
+                const savedWeekMeals = localStorage.getItem('weekMeals');
+                const savedProgress = localStorage.getItem('weekProgress');
+                
+                if (savedWeekMeals) {
+                    setWeekMeals(JSON.parse(savedWeekMeals));
+                } else {
+                    const newWeekMeals = {};
+                    for (let i = 1; i <= 7; i++) {
+                        newWeekMeals[i] = generateDayMeals(i);
+                    }
+                    setWeekMeals(newWeekMeals);
+                }
+
+                if (savedProgress) {
+                    setProgress(JSON.parse(savedProgress));
+                } else {
+                    const initialProgress = {};
+                    for (let i = 1; i <= 7; i++) {
+                        initialProgress[i] = 0;
+                    }
+                    setProgress(initialProgress);
+                }
+
+                // Read URL parameter
+                const path = window.location.pathname;
+                const dayMatch = path.match(/\/(\d+)$/);
+                if (dayMatch && dayMatch[1] >= 1 && dayMatch[1] <= 7) {
+                    setCurrentDay(parseInt(dayMatch[1]));
+                }
+            }, []);
+
+            // Save to localStorage
+            useEffect(() => {
+                if (Object.keys(weekMeals).length > 0) {
+                    localStorage.setItem('weekMeals', JSON.stringify(weekMeals));
+                }
+            }, [weekMeals]);
+
+            useEffect(() => {
+                if (Object.keys(progress).length > 0) {
+                    localStorage.setItem('weekProgress', JSON.stringify(progress));
+                }
+            }, [progress]);
+
+            // Update shopping list
+            useEffect(() => {
+                if (weekMeals[currentDay]) {
+                    const allIngredients = [];
+                    weekMeals[currentDay].forEach(meal => {
+                        if (meal.ingredients) {
+                            meal.ingredients.forEach(ingredient => {
+                                allIngredients.push({ name: ingredient, meal: meal.name });
+                            });
+                        }
+                    });
+                    setShoppingList(allIngredients);
+                }
+            }, [weekMeals, currentDay]);
+
+            // Update time
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setCurrentTime(new Date());
+                }, 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            // Handle timers
+            useEffect(() => {
+                const timerInterval = setInterval(() => {
+                    setActiveTimers(prev => {
+                        const updated = { ...prev };
+                        Object.keys(updated).forEach(key => {
+                            if (updated[key].remaining > 0) {
+                                updated[key].remaining -= 1;
+                            }
+                        });
+                        return updated;
+                    });
+                }, 1000);
+                return () => clearInterval(timerInterval);
+            }, []);
+
+            const changeDay = (day) => {
+                setCurrentDay(day);
+                window.history.pushState({}, '', `/${day}`);
+                setCurrentPage('meals');
+            };
+
+            const handleAte = (index) => {
+                const updatedMeals = { ...weekMeals };
+                updatedMeals[currentDay][index].eaten = true;
+                setWeekMeals(updatedMeals);
+                
+                const updatedProgress = { ...progress };
+                updatedProgress[currentDay] = (updatedProgress[currentDay] || 0) + updatedMeals[currentDay][index].calories;
+                setProgress(updatedProgress);
+
+                if (index < updatedMeals[currentDay].length - 1) {
+                    const timeToNext = index === 0 ? 4 * 3600 : index === 1 ? 3 * 3600 : index === 2 ? 4 * 3600 : 0;
+                    setActiveTimers(prev => ({
+                        ...prev,
+                        [`${currentDay}-${index + 1}`]: {
+                            remaining: timeToNext,
+                            total: timeToNext
+                        }
+                    }));
+                }
+            };
+
+            const handleOverate = () => {
+                if (extraCalories && !isNaN(extraCalories)) {
+                    const updatedProgress = { ...progress };
+                    updatedProgress[currentDay] = (updatedProgress[currentDay] || 0) + parseInt(extraCalories);
+                    setProgress(updatedProgress);
+                    setExtraCalories('');
+                    setOvereatingModal(null);
+                }
+            };
+
+            const refreshMeal = (index) => {
+                const updatedMeals = { ...weekMeals };
+                const category = updatedMeals[currentDay][index].type;
+                const availableMeals = mealDatabase[category];
+                let newMeal;
+                do {
+                    newMeal = availableMeals[Math.floor(Math.random() * availableMeals.length)];
+                } while (newMeal.name === updatedMeals[currentDay][index].name && availableMeals.length > 1);
+                
+                updatedMeals[currentDay][index] = { ...newMeal, type: category, eaten: updatedMeals[currentDay][index].eaten };
+                setWeekMeals(updatedMeals);
+            };
+
+            const resetProgress = () => {
+                const updatedProgress = { ...progress };
+                updatedProgress[currentDay] = 0;
+                setProgress(updatedProgress);
+                
+                const updatedMeals = { ...weekMeals };
+                updatedMeals[currentDay] = updatedMeals[currentDay].map(meal => ({ ...meal, eaten: false }));
+                setWeekMeals(updatedMeals);
+                
+                setActiveTimers({});
+            };
+
+            const formatTime = (seconds) => {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const getMealTypeLabel = (type) => {
+                const labels = {
+                    breakfast: '🌅 Breakfast',
+                    lunch: '🌞 Lunch',
+                    snack: '🍪 Snack',
+                    dinner: '🌙 Dinner'
+                };
+                return labels[type];
+            };
+
+            const getNextMealLabel = (index) => {
+                if (!weekMeals[currentDay] || index >= weekMeals[currentDay].length) return '';
+                return weekMeals[currentDay][index].type.charAt(0).toUpperCase() + weekMeals[currentDay][index].type.slice(1);
+            };
+
+            const getTotalNutrition = () => {
+                if (!weekMeals[currentDay]) return { protein: 0, carbs: 0, fat: 0 };
+                return weekMeals[currentDay].reduce((acc, meal) => ({
+                    protein: acc.protein + meal.protein,
+                    carbs: acc.carbs + meal.carbs,
+                    fat: acc.fat + meal.fat
+                }), { protein: 0, carbs: 0, fat: 0 });
+            };
+
+            const downloadPDF = async () => {
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    
+                    const totalNutrition = getTotalNutrition();
+                    const currentProgress = progress[currentDay] || 0;
+                    const overCalories = currentProgress > 1200 ? currentProgress - 1200 : 0;
+                    const dayName = daysOfWeek[currentDay - 1].name;
+                    
+                    let yPos = 20;
+                    const lineHeight = 7;
+                    const pageHeight = 280;
+                    
+                    const checkNewPage = (requiredSpace = 20) => {
+                        if (yPos + requiredSpace > pageHeight) {
+                            doc.addPage();
+                            yPos = 20;
+                        }
+                    };
+
+                    // Title
+                    doc.setFontSize(20);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`MEAL PLAN - ${dayName}`, 105, yPos, { align: 'center' });
+                    yPos += 10;
+
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('Your 1200 kcal Day Menu', 105, yPos, { align: 'center' });
+                    yPos += 10;
+
+                    doc.setFontSize(11);
+                    doc.text(`Current Progress: ${Math.round(currentProgress)} / 1200 kcal`, 20, yPos);
+                    yPos += lineHeight;
+                    
+                    if (overCalories > 0) {
+                        doc.setTextColor(255, 0, 0);
+                        doc.text(`Excess Calories: +${Math.round(overCalories)} kcal`, 20, yPos);
+                        doc.setTextColor(0, 0, 0);
+                        yPos += lineHeight;
+                    }
+                    
+                    yPos += 5;
+
+                    // Daily Nutrition Summary
+                    checkNewPage(30);
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Daily Nutrition Summary', 20, yPos);
+                    yPos += lineHeight + 2;
+
+                    doc.setFontSize(11);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Total Protein: ${totalNutrition.protein}g`, 20, yPos);
+                    doc.text(`Total Carbs: ${totalNutrition.carbs}g`, 80, yPos);
+                    doc.text(`Total Fat: ${totalNutrition.fat}g`, 140, yPos);
+                    yPos += lineHeight + 5;
+
+                    doc.line(20, yPos, 190, yPos);
+                    yPos += 10;
+
+                    // Meals
+                    if (weekMeals[currentDay]) {
+                        weekMeals[currentDay].forEach((meal, index) => {
+                            checkNewPage(60);
+                            
+                            doc.setFontSize(13);
+                            doc.setFont(undefined, 'bold');
+                            doc.text(getMealTypeLabel(meal.type), 20, yPos);
+                            yPos += lineHeight;
+
+                            doc.setFontSize(12);
+                            doc.setFont(undefined, 'normal');
+                            doc.text(meal.name.replace(/[^\x00-\x7F]/g, ''), 20, yPos);
+                            yPos += lineHeight;
+
+                            doc.setFontSize(10);
+                            doc.text(`Prep Time: ${meal.time} min | ${meal.eaten ? 'Completed' : 'Not eaten yet'}`, 20, yPos);
+                            yPos += lineHeight + 2;
+
+                            doc.setFontSize(10);
+                            doc.text(`Calories: ${meal.calories} kcal | Protein: ${meal.protein}g | Carbs: ${meal.carbs}g | Fat: ${meal.fat}g`, 20, yPos);
+                            yPos += lineHeight + 3;
+
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Ingredients:', 20, yPos);
+                            yPos += lineHeight;
+                            
+                            doc.setFont(undefined, 'normal');
+                            meal.ingredients.forEach(ing => {
+                                checkNewPage();
+                                doc.text(`- ${ing}`, 25, yPos);
+                                yPos += lineHeight;
+                            });
+                            yPos += 2;
+
+                            checkNewPage(15);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Instructions:', 20, yPos);
+                            yPos += lineHeight;
+                            
+                            doc.setFont(undefined, 'normal');
+                            meal.steps.forEach((step, idx) => {
+                                checkNewPage(10);
+                                const lines = doc.splitTextToSize(`${idx + 1}. ${step}`, 160);
+                                lines.forEach(line => {
+                                    checkNewPage();
+                                    doc.text(line, 25, yPos);
+                                    yPos += lineHeight;
+                                });
+                            });
+                            yPos += 2;
+
+                            checkNewPage(15);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Substitutions:', 20, yPos);
+                            yPos += lineHeight;
+                            
+                            doc.setFont(undefined, 'normal');
+                            meal.substitutes.forEach(sub => {
+                                checkNewPage();
+                                doc.text(`- ${sub}`, 25, yPos);
+                                yPos += lineHeight;
+                            });
+
+                            yPos += 5;
+                            checkNewPage();
+                            doc.line(20, yPos, 190, yPos);
+                            yPos += 10;
+                        });
+                    }
+
+                    // Shopping List
+                    checkNewPage(30);
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Shopping List', 20, yPos);
+                    yPos += lineHeight + 3;
+
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    shoppingList.forEach(item => {
+                        checkNewPage();
+                        const text = `- ${item.name} (for ${item.meal.replace(/[^\x00-\x7F]/g, '')})`;
+                        const lines = doc.splitTextToSize(text, 170);
+                        lines.forEach(line => {
+                            checkNewPage();
+                            doc.text(line, 20, yPos);
+                            yPos += lineHeight;
+                        });
+                    });
+
+                    yPos += 10;
+                    checkNewPage();
+                    doc.line(20, yPos, 190, yPos);
+                    yPos += 7;
+                    doc.setFontSize(9);
+                    doc.text(`Generated: ${new Date().toLocaleString()}`, 105, yPos, { align: 'center' });
+
+                    doc.save(`meal-plan-${dayName.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    alert('Error generating PDF. Please try again.');
+                }
+            };
+
+            const downloadShoppingList = () => {
+                const dayName = daysOfWeek[currentDay - 1].name;
+                const content = `SHOPPING LIST - ${dayName} Meal Plan
+Generated: ${new Date().toLocaleString()}
+
+${shoppingList.map(item => `☐ ${item.name}\n   For: ${item.meal}`).join('\n\n')}
+
+Total Items: ${shoppingList.length}`;
+
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `shopping-list-${dayName.toLowerCase()}-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const theme = themes[currentTheme];
+            const currentProgress = progress[currentDay] || 0;
+            const isOverLimit = currentProgress > 1200;
+            const overCalories = isOverLimit ? currentProgress - 1200 : 0;
+            const progressPercentage = Math.min((currentProgress / 1200) * 100, 100);
+            const totalNutrition = getTotalNutrition();
+            const meals = weekMeals[currentDay] || [];
+            const dayName = daysOfWeek[currentDay - 1]?.name || 'Monday';
+
+            return (
+                <div className={`min-h-screen bg-gradient-to-br ${theme.bg} pb-20`}>
+                    {/* Week Navigation */}
+                    <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm shadow-md">
+                        <div className="max-w-6xl mx-auto px-2 md:px-4 py-3">
+                            <div className="flex gap-1 md:gap-2 overflow-x-auto">
+                                {daysOfWeek.map((day, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => changeDay(index + 1)}
+                                        className={`flex-shrink-0 px-3 md:px-4 py-2 rounded-xl border-2 font-medium text-xs md:text-sm transition-all ${
+                                            currentDay === index + 1 
+                                                ? `${day.activeColor} shadow-lg scale-105` 
+                                                : `${day.color}`
+                                        }`}
+                                    >
+                                        {day.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-4xl mx-auto p-4 md:p-6">
+                        {/* Header */}
+                        <div className={`${theme.card} backdrop-blur-sm rounded-3xl shadow-xl p-4 md:p-6 mb-4 md:mb-6`}>
+                            <div className="flex flex-col items-center mb-4">
+                                <div className={`inline-flex items-center justify-center px-6 py-3 rounded-2xl border-2 ${theme.border} ${theme.accent} mb-3`}>
+                                    <span className="text-2xl md:text-3xl font-bold text-white tracking-wide">{dayName}</span>
+                                </div>
+                                <h2 className={`text-lg md:text-xl font-semibold ${theme.text} text-center`}>
+                                    Your 1200 kcal Day Menu
+                                </h2>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2 text-gray-600 mb-4">
+                                <Clock className="w-4 h-4 md:w-5 md:h-5" />
+                                <span className="text-sm md:text-base">{currentTime.toLocaleTimeString()}</span>
+                            </div>
+
+                            {/* Theme Switcher */}
+                            <div className="flex flex-wrap gap-2 justify-center mb-4">
+                                {themes.map((t, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setCurrentTheme(i)}
+                                        className={`w-8 h-8 md:w-10 md:h-10 rounded-full ${t.accent} ${currentTheme === i ? 'ring-4 ring-offset-2 ring-gray-400' : ''} transition-all hover:scale-110`}
+                                        aria-label={t.name}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs md:text-sm text-gray-600 font-medium">
+                                    <span>Daily Progress</span>
+                                    <span className={isOverLimit ? 'text-red-600 font-bold' : ''}>
+                                        {Math.round(currentProgress)} / 1200 kcal
+                                    </span>
+                                </div>
+                                <div className="w-full h-3 md:h-4 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                        className={`h-full transition-all duration-500 ${isOverLimit ? 'bg-red-500' : theme.accent}`}
+                                        style={{ width: `${progressPercentage}%` }}
+                                    />
+                                </div>
+                                {isOverLimit && (
+                                    <div className="text-center text-red-600 font-bold text-sm md:text-base animate-pulse">
+                                        ⚠️ Excess Calories: +{Math.round(overCalories)} kcal
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-2 md:gap-3 mt-4">
+                                <button
+                                    onClick={downloadPDF}
+                                    className={`${theme.accent} ${theme.accentHover} text-white px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base`}
+                                >
+                                    <Download className="w-4 h-4 md:w-5 md:h-5" />
+                                    <span>Скачать</span>
+                                </button>
+                                <button
+                                    onClick={() => setShowShoppingList(true)}
+                                    className={`${theme.accent} ${theme.accentHover} text-white px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base`}
+                                >
+                                    <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+                                    <span>Cart</span>
+                                </button>
+                                <button
+                                    onClick={resetProgress}
+                                    className="bg-red-400 hover:bg-red-500 text-white px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base"
+                                >
+                                    <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
+                                    <span>Reset</span>
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(currentPage === 'meals' ? 'summary' : 'meals')}
+                                    className={`${theme.accent} ${theme.accentHover} text-white px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base`}
+                                >
+                                    {currentPage === 'meals' ? <List className="w-4 h-4 md:w-5 md:h-5" /> : <Home className="w-4 h-4 md:w-5 md:h-5" />}
+                                    <span>{currentPage === 'meals' ? 'Summary' : 'Meals'}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Page Content */}
+                        {currentPage === 'meals' ? (
+                            <div className="space-y-4 md:space-y-6">
+                                {meals.map((meal, index) => (
+                                    <div key={index} className={`${theme.card} backdrop-blur-sm rounded-2xl md:rounded-3xl shadow-xl p-4 md:p-6`}>
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+                                            <div>
+                                                <h2 className={`text-xl md:text-2xl font-bold ${theme.text} mb-1`}>{getMealTypeLabel(meal.type)}</h2>
+                                                <h3 className="text-base md:text-lg font-semibold text-gray-800">{meal.name}</h3>
+                                                <p className="text-xs md:text-sm text-gray-600 mt-1">⏱️ {meal.time} minutes</p>
+                                            </div>
+                                            <button
+                                                onClick={() => refreshMeal(index)}
+                                                className={`${theme.accent} ${theme.accentHover} text-white px-3 py-2 rounded-xl font-medium transition-all flex items-center gap-2 text-sm md:text-base shrink-0`}
+                                            >
+                                                <RefreshCw className="w-4 h-4" />
+                                                <span>Change</span>
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 mb-3">
+                                            <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-2 md:p-3 text-center border-2 border-gray-200">
+                                                <div className="text-lg md:text-2xl font-bold text-gray-800">{meal.calories}</div>
+                                                <div className="text-xs text-gray-600">Calories</div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-2 md:p-3 text-center border-2 border-blue-200">
+                                                <div className="text-lg md:text-2xl font-bold text-blue-600">{meal.protein}g</div>
+                                                <div className="text-xs text-gray-600">Protein</div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-green-50 to-white rounded-xl p-2 md:p-3 text-center border-2 border-green-200">
+                                                <div className="text-lg md:text-2xl font-bold text-green-600">{meal.carbs}g</div>
+                                                <div className="text-xs text-gray-600">Carbs</div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-orange-50 to-white rounded-xl p-2 md:p-3 text-center border-2 border-orange-200">
+                                                <div className="text-lg md:text-2xl font-bold text-orange-600">{meal.fat}g</div>
+                                                <div className="text-xs text-gray-600">Fat</div>
+                                            </div>
+                                        </div>
+
+                                        {activeTimers[`${currentDay}-${index}`] && activeTimers[`${currentDay}-${index}`].remaining > 0 && (
+                                            <div className="mb-3 bg-blue-50 rounded-xl p-3 border-2 border-blue-200">
+                                                <div className="text-center mb-2 text-xs md:text-sm font-medium text-gray-700">
+                                                    Time until {getNextMealLabel(index)}
+                                                </div>
+                                                <div className="text-2xl md:text-3xl font-bold text-center text-blue-600 mb-2">
+                                                    {formatTime(activeTimers[`${currentDay}-${index}`].remaining)}
+                                                </div>
+                                                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-blue-500 transition-all duration-1000"
+                                                        style={{ width: `${((activeTimers[`${currentDay}-${index}`].total - activeTimers[`${currentDay}-${index}`].remaining) / activeTimers[`${currentDay}-${index}`].total) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
+                                            <button
+                                                onClick={() => handleAte(index)}
+                                                disabled={meal.eaten}
+                                                className={`${meal.eaten ? 'bg-gray-300' : theme.accent + ' ' + theme.accentHover} text-white px-4 py-2 md:py-3 rounded-xl font-medium transition-all disabled:cursor-not-allowed text-sm md:text-base shadow-lg`}
+                                            >
+                                                {meal.eaten ? '✓ Eaten' : '🍽️ I Ate This'}
+                                            </button>
+                                            <button
+                                                onClick={() => setOvereatingModal(index)}
+                                                className="bg-orange-400 hover:bg-orange-500 text-white px-4 py-2 md:py-3 rounded-xl font-medium transition-all text-sm md:text-base shadow-lg"
+                                            >
+                                                ➕ Overate
+                                            </button>
+                                            <button
+                                                onClick={() => setShowRecipe(meal)}
+                                                className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 md:py-3 rounded-xl font-medium transition-all text-sm md:text-base shadow-lg"
+                                            >
+                                                📖 Recipe
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className={`${theme.card} backdrop-blur-sm rounded-2xl md:rounded-3xl shadow-xl p-4 md:p-6`}>
+                                <h2 className={`text-2xl md:text-3xl font-bold ${theme.text} mb-4 md:mb-6 text-center`}>
+                                    📋 My Daily Menu
+                                </h2>
+
+                                <div className="space-y-3 md:space-y-4 mb-4 md:mb-6">
+                                    {meals.map((meal, index) => (
+                                        <div key={index} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-3 md:p-4 border-2 border-gray-200">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <h3 className={`font-bold ${theme.text} text-base md:text-lg`}>{getMealTypeLabel(meal.type)}</h3>
+                                                    <p className="text-sm md:text-base text-gray-700">{meal.name}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">⏱️ {meal.time} min</p>
+                                                </div>
+                                                <span className={`text-xs md:text-sm px-2 md:px-3 py-1 rounded-full ${meal.eaten ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {meal.eaten ? '✓ Done' : 'Pending'}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-2 mt-2">
+                                                <div className="text-center">
+                                                    <div className="text-sm md:text-base font-bold text-gray-800">{meal.calories}</div>
+                                                    <div className="text-xs text-gray-600">kcal</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-sm md:text-base font-bold text-blue-600">{meal.protein}g</div>
+                                                    <div className="text-xs text-gray-600">Protein</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-sm md:text-base font-bold text-green-600">{meal.carbs}g</div>
+                                                    <div className="text-xs text-gray-600">Carbs</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-sm md:text-base font-bold text-orange-600">{meal.fat}g</div>
+                                                    <div className="text-xs text-gray-600">Fat</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 md:p-6 mb-4 md:mb-6 border-2 border-blue-200">
+                                    <h3 className="font-bold text-gray-800 mb-3 md:mb-4 text-center text-lg md:text-xl">
+                                        📊 Total Daily Nutrition
+                                    </h3>
+                                    <div className="grid grid-cols-3 gap-3 md:gap-4">
+                                        <div className="bg-white rounded-xl p-3 md:p-4 text-center border-2 border-blue-200">
+                                            <div className="text-xl md:text-3xl font-bold text-blue-600">{totalNutrition.protein}g</div>
+                                            <div className="text-xs md:text-sm text-gray-600 mt-1">Protein</div>
+                                        </div>
+                                        <div className="bg-white rounded-xl p-3 md:p-4 text-center border-2 border-green-200">
+                                            <div className="text-xl md:text-3xl font-bold text-green-600">{totalNutrition.carbs}g</div>
+                                            <div className="text-xs md:text-sm text-gray-600 mt-1">Carbs</div>
+                                        </div>
+                                        <div className="bg-white rounded-xl p-3 md:p-4 text-center border-2 border-orange-200">
+                                            <div className="text-xl md:text-3xl font-bold text-orange-600">{totalNutrition.fat}g</div>
+                                            <div className="text-xs md:text-sm text-gray-600 mt-1">Fat</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`rounded-xl p-4 md:p-6 border-2 ${isOverLimit ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
+                                    <h3 className="font-bold text-gray-800 mb-3 md:mb-4 text-center text-lg md:text-xl">
+                                        🎯 Daily Progress
+                                    </h3>
+                                    
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="text-sm md:text-base font-medium text-gray-700">Consumed</span>
+                                        <span className={`text-lg md:text-2xl font-bold ${isOverLimit ? 'text-red-600' : 'text-green-600'}`}>
+                                            {Math.round(currentProgress)} kcal
+                                        </span>
+                                    </div>
+
+                                    <div className="w-full h-4 md:h-6 bg-gray-200 rounded-full overflow-hidden mb-3">
+                                        <div 
+                                            className={`h-full transition-all duration-500 ${isOverLimit ? 'bg-red-500' : 'bg-green-500'}`}
+                                            style={{ width: `${progressPercentage}%` }}
+                                        />
+                                    </div>
+
+                                    {isOverLimit ? (
+                                        <div className="text-center space-y-2">
+                                            <div className="text-red-600 font-bold text-base md:text-lg animate-pulse">
+                                                ⚠️ Over Limit!
+                                            </div>
+                                            <div className="text-red-700 font-semibold text-lg md:text-2xl">
+                                                Excess: +{Math.round(overCalories)} kcal
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center space-y-2">
+                                            <div className="text-green-600 font-bold text-base md:text-lg">
+                                                ✓ On Track
+                                            </div>
+                                            <div className="text-green-700 font-semibold text-lg md:text-2xl">
+                                                Remaining: {Math.round(1200 - currentProgress)} kcal
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Recipe Modal */}
+                    {showRecipe && (
+                        <div 
+                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto modal-overlay" 
+                            onClick={() => setShowRecipe(null)}
+                        >
+                            <div className="min-h-screen flex items-center justify-center p-2 md:p-4 py-8">
+                                <div 
+                                    className={`${theme.card} rounded-2xl md:rounded-3xl shadow-2xl max-w-2xl w-full my-auto p-4 md:p-6 custom-scrollbar`} 
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ maxHeight: '90vh', overflowY: 'auto' }}
+                                >
+                                    <div className="flex justify-between items-start mb-3 md:mb-4 sticky top-0 bg-white/95 backdrop-blur-sm pb-2 z-10">
+                                        <h2 className={`text-xl md:text-2xl font-bold ${theme.text} pr-2`}>{showRecipe.name}</h2>
+                                        <button 
+                                            onClick={() => setShowRecipe(null)} 
+                                            className="text-gray-500 hover:text-gray-700 shrink-0 p-1"
+                                        >
+                                            <X className="w-5 h-5 md:w-6 md:h-6" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3 md:space-y-4">
+                                        <div className="bg-gray-50 rounded-xl p-2 md:p-3 border-2 border-gray-200">
+                                            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">⏱️ Prep: {showRecipe.time} min</h3>
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">📊 Nutrition</h3>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-200">
+                                                    <div className="text-base md:text-lg font-bold">{showRecipe.calories}</div>
+                                                    <div className="text-xs text-gray-600">kcal</div>
+                                                </div>
+                                                <div className="bg-blue-50 rounded-lg p-2 text-center border-2 border-blue-200">
+                                                    <div className="text-base md:text-lg font-bold text-blue-600">{showRecipe.protein}g</div>
+                                                    <div className="text-xs text-gray-600">Protein</div>
+                                                </div>
+                                                <div className="bg-green-50 rounded-lg p-2 text-center border-2 border-green-200">
+                                                    <div className="text-base md:text-lg font-bold text-green-600">{showRecipe.carbs}g</div>
+                                                    <div className="text-xs text-gray-600">Carbs</div>
+                                                </div>
+                                                <div className="bg-orange-50 rounded-lg p-2 text-center border-2 border-orange-200">
+                                                    <div className="text-base md:text-lg font-bold text-orange-600">{showRecipe.fat}g</div>
+                                                    <div className="text-xs text-gray-600">Fat</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">🛒 Ingredients</h3>
+                                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                                <ul className="space-y-1">
+                                                    {showRecipe.ingredients.map((ing, i) => (
+                                                        <li key={i} className="flex items-start gap-2 text-sm md:text-base">
+                                                            <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                                                            <span className="text-gray-700">{ing}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">👨‍🍳 Instructions</h3>
+                                            <div className="space-y-2">
+                                                {showRecipe.steps.map((step, i) => (
+                                                    <div key={i} className="flex gap-2 md:gap-3 bg-gray-50 rounded-lg p-2 md:p-3 border border-gray-200">
+                                                        <span className={`${theme.accent} text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center font-bold text-sm shrink-0`}>
+                                                            {i + 1}
+                                                        </span>
+                                                        <span className="text-gray-700 text-sm md:text-base pt-0.5">{step}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">🔄 Substitutions</h3>
+                                            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                                <ul className="space-y-1">
+                                                    {showRecipe.substitutes.map((sub, i) => (
+                                                        <li key={i} className="flex items-start gap-2 text-sm md:text-base">
+                                                            <span className="text-blue-500 mt-0.5 shrink-0">→</span>
+                                                            <span className="text-gray-700">{sub}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <button
+                                                onClick={() => setShowRecipe(null)}
+                                                className={`w-full ${theme.accent} ${theme.accentHover} text-white px-4 py-3 rounded-xl font-medium transition-all shadow-lg`}
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Overeating Modal */}
+                    {overeatingModal !== null && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setOvereatingModal(null)}>
+                            <div className={`${theme.card} rounded-2xl md:rounded-3xl shadow-2xl max-w-md w-full p-4 md:p-6`} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <h2 className={`text-xl md:text-2xl font-bold ${theme.text}`}>Add Extra Calories</h2>
+                                    <button onClick={() => setOvereatingModal(null)} className="text-gray-500 hover:text-gray-700">
+                                        <X className="w-5 h-5 md:w-6 md:h-6" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3 md:space-y-4">
+                                    <input
+                                        type="number"
+                                        value={extraCalories}
+                                        onChange={(e) => setExtraCalories(e.target.value)}
+                                        placeholder="Enter calories"
+                                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-orange-400 focus:outline-none text-base md:text-lg"
+                                    />
+                                    <button
+                                        onClick={handleOverate}
+                                        className="w-full bg-orange-400 hover:bg-orange-500 text-white px-6 py-3 rounded-xl font-medium transition-all text-base md:text-lg shadow-lg"
+                                    >
+                                        Add Calories
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Shopping List Modal */}
+                    {showShoppingList && (
+                        <div 
+                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto modal-overlay" 
+                            onClick={() => setShowShoppingList(false)}
+                        >
+                            <div className="min-h-screen flex items-center justify-center p-2 md:p-4 py-8">
+                                <div 
+                                    className={`${theme.card} rounded-2xl md:rounded-3xl shadow-2xl max-w-2xl w-full my-auto p-4 md:p-6`} 
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <div className="flex justify-between items-start mb-3 md:mb-4 sticky top-0 bg-white/95 backdrop-blur-sm pb-2 z-10">
+                                        <h2 className={`text-xl md:text-2xl font-bold ${theme.text}`}>🛒 Shopping List</h2>
+                                        <button 
+                                            onClick={() => setShowShoppingList(false)} 
+                                            className="text-gray-500 hover:text-gray-700 p-1"
+                                        >
+                                            <X className="w-5 h-5 md:w-6 md:h-6" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                                        {shoppingList.map((item, i) => (
+                                            <div key={i} className="flex items-start gap-2 md:gap-3 p-2 md:p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                <span className="text-green-500 mt-0.5 text-base md:text-lg shrink-0">✓</span>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-medium text-gray-800 text-sm md:text-base break-words">{item.name}</div>
+                                                    <div className="text-xs md:text-sm text-gray-600">For: {item.meal}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2 md:gap-3 pt-3 border-t border-gray-200">
+                                        <button
+                                            onClick={downloadShoppingList}
+                                            className={`flex-1 ${theme.accent} ${theme.accentHover} text-white px-4 py-2 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base`}
+                                        >
+                                            <Download className="w-4 h-4 md:w-5 md:h-5" />
+                                            <span>Download</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const text = shoppingList.map(item => `☐ ${item.name} (for ${item.meal})`).join('\n');
+                                                navigator.clipboard.writeText(text);
+                                                alert('Shopping list copied!');
+                                            }}
+                                            className={`flex-1 ${theme.accent} ${theme.accentHover} text-white px-4 py-2 md:py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm md:text-base`}
+                                        >
+                                            <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+                                            <span>Copy</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="pt-3">
+                                        <button
+                                            onClick={() => setShowShoppingList(false)}
+                                            className={`w-full ${theme.accent} ${theme.accentHover} text-white px-4 py-3 rounded-xl font-medium transition-all shadow-lg`}
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MealPlanner />);
+    </script>
+</body>
+</html>
